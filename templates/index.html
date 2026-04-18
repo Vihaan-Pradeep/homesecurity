@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HomeShield</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0c0f;--surface:#111318;--surface2:#181c22;
+    --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+    --text:#e8eaf0;--muted:#6b7280;
+    --green:#22c55e;--green-dim:rgba(34,197,94,0.12);
+    --yellow:#eab308;--yellow-dim:rgba(234,179,8,0.12);
+    --red:#ef4444;--red-dim:rgba(239,68,68,0.12);
+    --blue:#3b82f6;--blue-dim:rgba(59,130,246,0.1);
+    --font:'IBM Plex Sans',sans-serif;--mono:'IBM Plex Mono',monospace;
+  }
+  body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh;padding:24px}
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-icon{width:32px;height:32px;background:var(--blue-dim);border:1px solid var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center}
+  .logo-text{font-size:16px;font-weight:500}
+  .logo-sub{font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .header-right{display:flex;align-items:center;gap:16px}
+  .clock{font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .arm-btn{padding:8px 20px;border-radius:8px;border:1px solid;font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s;letter-spacing:0.03em}
+  .arm-btn.disarmed{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+  .arm-btn.armed{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+  .arm-btn:hover{opacity:0.8;transform:scale(0.98)}
+  .status-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;margin-bottom:24px;font-family:var(--mono);font-size:12px;border:1px solid;transition:all 0.4s}
+  .status-bar.disarmed{background:var(--surface);border-color:var(--border2);color:var(--muted)}
+  .status-bar.armed{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+  .status-bar.alert{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+  .pulse{width:8px;height:8px;border-radius:50%;animation:pulse 1.5s infinite}
+  .disarmed .pulse{background:var(--muted);animation:none}
+  .armed .pulse{background:var(--green)}
+  .alert .pulse{background:var(--red)}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)}}
+  .zones-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+  .zone-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;transition:all 0.3s;position:relative;overflow:hidden}
+  .zone-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;transition:background 0.3s}
+  .zone-card.clear::before{background:var(--green)}
+  .zone-card.motion::before{background:var(--yellow)}
+  .zone-card.intruder::before{background:var(--red)}
+  .zone-card.intruder{border-color:rgba(239,68,68,0.3);animation:flash 0.8s infinite alternate}
+  @keyframes flash{from{background:var(--surface)}to{background:rgba(239,68,68,0.05)}}
+  .zone-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .zone-name{font-size:12px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em}
+  .zone-badge{font-size:10px;font-family:var(--mono);padding:3px 8px;border-radius:4px;font-weight:500;border:1px solid;text-transform:uppercase;letter-spacing:0.05em}
+  .badge-clear{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+  .badge-motion{background:var(--yellow-dim);border-color:var(--yellow);color:var(--yellow)}
+  .badge-intruder{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+  .dist-num{font-family:var(--mono);font-size:32px;font-weight:400;margin-bottom:4px;transition:color 0.3s}
+  .dist-num.clear{color:var(--green)}
+  .dist-num.motion{color:var(--yellow)}
+  .dist-num.intruder{color:var(--red)}
+  .dist-label{font-size:11px;color:var(--muted);margin-bottom:16px}
+  .sensor-row{display:flex;gap:8px}
+  .sensor-pill{flex:1;padding:6px 8px;border-radius:6px;font-size:10px;font-family:var(--mono);text-align:center;border:1px solid var(--border);color:var(--muted);transition:all 0.3s}
+  .sensor-pill.active-ir{background:var(--yellow-dim);border-color:var(--yellow);color:var(--yellow)}
+  .sensor-pill.active-motion{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+  .sensor-pill.active-dist{background:var(--blue-dim);border-color:var(--blue);color:var(--blue)}
+  .bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px}
+  .panel-title{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px}
+  .floorplan{position:relative;width:100%;height:200px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);overflow:hidden}
+  .fp-zone{position:absolute;border:1px solid;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:all 0.4s;font-family:var(--mono)}
+  .fp-zone.clear{background:rgba(34,197,94,0.05);border-color:rgba(34,197,94,0.2)}
+  .fp-zone.motion{background:rgba(234,179,8,0.1);border-color:rgba(234,179,8,0.4)}
+  .fp-zone.intruder{background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.5);animation:flash 0.7s infinite alternate}
+  .fp-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em}
+  .fp-dist{font-size:14px;transition:color 0.3s}
+  .fp-zone.clear .fp-dist{color:var(--green)}
+  .fp-zone.motion .fp-dist{color:var(--yellow)}
+  .fp-zone.intruder .fp-dist{color:var(--red)}
+  .fp-hall{position:absolute;left:0;right:0;top:50%;height:25%;background:transparent;border-top:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+  .fp-hall-label{font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.06em}
+  .log{max-height:200px;overflow-y:auto}
+  .log::-webkit-scrollbar{width:3px}
+  .log::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+  .log-entry{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px}
+  .log-entry:last-child{border-bottom:none}
+  .log-time{font-family:var(--mono);color:var(--muted);white-space:nowrap;min-width:58px}
+  .log-dot{width:6px;height:6px;border-radius:50%;margin-top:3px;flex-shrink:0}
+  .log-msg{color:var(--text);line-height:1.5}
+  .dot-info{background:var(--blue)}
+  .dot-warning{background:var(--yellow)}
+  .dot-danger{background:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M8 1L2 4v4c0 3.3 2.5 6.4 6 7 3.5-.6 6-3.7 6-7V4L8 1z" stroke="#3b82f6" stroke-width="1.2"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">HomeShield</div>
+      <div class="logo-sub">security dashboard</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="clock" id="clock">--:--:--</div>
+    <button class="arm-btn disarmed" id="armBtn" onclick="toggleArm()">ARM SYSTEM</button>
+  </div>
+</div>
+
+<div class="status-bar disarmed" id="statusBar">
+  <div class="pulse"></div>
+  <span id="statusText">SYSTEM DISARMED — monitoring paused</span>
+</div>
+
+<div class="zones-grid">
+  <div class="zone-card clear" id="zc1">
+    <div class="zone-header">
+      <span class="zone-name">Zone 1 — Front Door</span>
+      <span class="zone-badge badge-clear" id="zb1">Clear</span>
+    </div>
+    <div class="dist-num clear" id="zd1">--</div>
+    <div class="dist-label">cm distance</div>
+    <div class="sensor-row">
+      <div class="sensor-pill" id="z1ir">IR</div>
+      <div class="sensor-pill" id="z1mo">Motion</div>
+      <div class="sensor-pill" id="z1qd">Q-Dist</div>
+      <div class="sensor-pill" id="z1qm">Q-Mot</div>
+    </div>
+  </div>
+  <div class="zone-card clear" id="zc2">
+    <div class="zone-header">
+      <span class="zone-name">Zone 2 — Living Room</span>
+      <span class="zone-badge badge-clear" id="zb2">Clear</span>
+    </div>
+    <div class="dist-num clear" id="zd2">--</div>
+    <div class="dist-label">cm distance</div>
+    <div class="sensor-row">
+      <div class="sensor-pill" id="z2ir">IR</div>
+      <div class="sensor-pill" id="z2mo">Motion</div>
+      <div class="sensor-pill" id="z2qd">Q-Dist</div>
+      <div class="sensor-pill" id="z2qm">Q-Mot</div>
+    </div>
+  </div>
+  <div class="zone-card clear" id="zc3">
+    <div class="zone-header">
+      <span class="zone-name">Zone 3 — Back Window</span>
+      <span class="zone-badge badge-clear" id="zb3">Clear</span>
+    </div>
+    <div class="dist-num clear" id="zd3">--</div>
+    <div class="dist-label">cm distance</div>
+    <div class="sensor-row">
+      <div class="sensor-pill" id="z3ir">IR</div>
+      <div class="sensor-pill" id="z3mo">Motion</div>
+      <div class="sensor-pill" id="z3qd">Q-Dist</div>
+      <div class="sensor-pill" id="z3qm">Q-Mot</div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-grid">
+  <div class="panel">
+    <div class="panel-title">Floor Plan</div>
+    <div class="floorplan">
+      <div class="fp-zone clear" id="fp1" style="left:1%;top:2%;width:31%;height:45%">
+        <div class="fp-label">Front Door</div>
+        <div class="fp-dist" id="fp1d">--</div>
+      </div>
+      <div class="fp-zone clear" id="fp2" style="left:34%;top:2%;width:31%;height:45%">
+        <div class="fp-label">Living Room</div>
+        <div class="fp-dist" id="fp2d">--</div>
+      </div>
+      <div class="fp-zone clear" id="fp3" style="left:67%;top:2%;width:32%;height:45%">
+        <div class="fp-label">Back Window</div>
+        <div class="fp-dist" id="fp3d">--</div>
+      </div>
+      <div class="fp-hall">
+        <div class="fp-hall-label">hallway / common areas</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Event Log</div>
+    <div class="log" id="log">
+      <div class="log-entry">
+        <span class="log-time">--:--:--</span>
+        <div class="log-dot dot-info"></div>
+        <span class="log-msg">System initialized.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const socket = io();
+  let armed = false;
+
+  function updateClock() {
+    const d = new Date();
+    document.getElementById('clock').textContent =
+      String(d.getHours()).padStart(2,'0') + ':' +
+      String(d.getMinutes()).padStart(2,'0') + ':' +
+      String(d.getSeconds()).padStart(2,'0');
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  function toggleArm() {
+    armed = !armed;
+    fetch('/arm', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({armed})
+    });
+    updateArmUI();
+  }
+
+  function updateArmUI() {
+    const btn = document.getElementById('armBtn');
+    const bar = document.getElementById('statusBar');
+    const txt = document.getElementById('statusText');
+    if (armed) {
+      btn.textContent = 'DISARM SYSTEM';
+      btn.className = 'arm-btn armed';
+      bar.className = 'status-bar armed';
+      txt.textContent = 'SYSTEM ARMED — all zones active';
+    } else {
+      btn.textContent = 'ARM SYSTEM';
+      btn.className = 'arm-btn disarmed';
+      bar.className = 'status-bar disarmed';
+      txt.textContent = 'SYSTEM DISARMED — monitoring paused';
+      for (let i = 1; i <= 3; i++) renderZone(i, 'clear', 0, false, false, false, false);
+    }
+  }
+
+  function renderZone(n, status, dist, ir, motion, qdist, qmot) {
+    const card = document.getElementById('zc' + n);
+    const badge = document.getElementById('zb' + n);
+    const distEl = document.getElementById('zd' + n);
+    const fp = document.getElementById('fp' + n);
+    const fpd = document.getElementById('fp' + n + 'd');
+
+    card.className = 'zone-card ' + status;
+    distEl.className = 'dist-num ' + status;
+    distEl.textContent = dist > 0 ? dist : '--';
+    fp.className = 'fp-zone ' + status;
+    fpd.textContent = dist > 0 ? dist + 'cm' : '--';
+
+    const bm = {clear:['badge-clear','Clear'], motion:['badge-motion','Motion'], intruder:['badge-intruder','INTRUDER']};
+    badge.className = 'zone-badge ' + bm[status][0];
+    badge.textContent = bm[status][1];
+
+    document.getElementById('z'+n+'ir').className = 'sensor-pill' + (ir ? ' active-ir' : '');
+    document.getElementById('z'+n+'mo').className = 'sensor-pill' + (motion ? ' active-motion' : '');
+    document.getElementById('z'+n+'qd').className = 'sensor-pill' + (qdist ? ' active-dist' : '');
+    document.getElementById('z'+n+'qm').className = 'sensor-pill' + (qmot ? ' active-motion' : '');
+  }
+
+  function addLog(msg, level) {
+    const log = document.getElementById('log');
+    const d = new Date();
+    const t = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+    const e = document.createElement('div');
+    e.className = 'log-entry';
+    e.innerHTML = `<span class="log-time">${t}</span><div class="log-dot dot-${level}"></div><span class="log-msg">${msg}</span>`;
+    log.insertBefore(e, log.firstChild);
+    if (log.children.length > 30) log.removeChild(log.lastChild);
+  }
+
+  socket.on('state_update', function(data) {
+    armed = data.armed;
+    updateArmUI();
+
+    const zoneKeys = ['zone1','zone2','zone3'];
+    let anyIntruder = false;
+    zoneKeys.forEach(function(key, i) {
+      const z = data.zones[key];
+      let status = 'clear';
+      if (z.ir && z.motion) status = 'intruder';
+      else if (z.motion || z.ir) status = 'motion';
+      if (status === 'intruder') anyIntruder = true;
+      renderZone(i+1, status, z.ultrasonic, z.ir, z.motion, z.qdist, z.qmot);
+    });
+
+    if (data.armed && anyIntruder) {
+      document.getElementById('statusBar').className = 'status-bar alert';
+      document.getElementById('statusText').textContent = 'ALERT — Intruder detected!';
+    }
+
+    if (data.events && data.events.length > 0) {
+      const latest = data.events[0];
+      addLog(latest.msg, latest.level);
+    }
+  });
+</script>
+</body>
+</html>
+
