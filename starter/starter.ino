@@ -1,26 +1,50 @@
-// Minimal ESP32 sanity check: blinks the onboard LED and prints to serial.
-// Upload, then open Serial Monitor at 115200 baud.
+// Zone 1 sensor
+#define TRIG1_PIN 2
+#define ECHO1_PIN 1
+// Zone 2 sensor
+#define TRIG2_PIN 4
+#define ECHO2_PIN 5
+// Zone 3 sensor
+#define TRIG3_PIN 6
+#define ECHO3_PIN 7
 
-#ifndef LED_BUILTIN
-#define LED_BUILTIN 2  // GPIO2 on most ESP32 DevKit boards
-#endif
-
-void setup() {
+void setup()
+{
   Serial.begin(115200);
-  pinMode(LED_BUILTIN, OUTPUT);
-  delay(200);
-  Serial.println();
-  Serial.println("ESP32 starter booted");
+  pinMode(TRIG1_PIN, OUTPUT);
+  pinMode(ECHO1_PIN, INPUT);
+  pinMode(TRIG2_PIN, OUTPUT);
+  pinMode(ECHO2_PIN, INPUT);
+  pinMode(TRIG3_PIN, OUTPUT);
+  pinMode(ECHO3_PIN, INPUT);
 }
 
-unsigned long tick = 0;
+float readDistance(int trigPin, int echoPin)
+{
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
 
-void loop() {
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(500);
-  digitalWrite(LED_BUILTIN, LOW);
-  delay(500);
+  long duration = pulseIn(echoPin, HIGH, 30000);
+  return duration * 0.034 / 2.0;
+}
 
-  Serial.print("tick ");
-  Serial.println(tick++);
+void reportDistance(int zone, float distance)
+{
+  if (distance >= 2 && distance <= 400)
+  {
+    Serial.print(zone);
+    Serial.print(":");
+    Serial.println(distance);
+  }
+}
+
+void loop()
+{
+  reportDistance(1, readDistance(TRIG1_PIN, ECHO1_PIN));
+  reportDistance(2, readDistance(TRIG2_PIN, ECHO2_PIN));
+  reportDistance(3, readDistance(TRIG3_PIN, ECHO3_PIN));
+  delay(50);
 }
