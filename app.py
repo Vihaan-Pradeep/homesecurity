@@ -9,7 +9,7 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 ALERT_DISTANCE = 100  # cm
-SERIAL_PORT = "/dev/ttyUSB0"
+SERIAL_PORT = "COM4"
 BAUD_RATE = 115200
 
 def blank_zone():

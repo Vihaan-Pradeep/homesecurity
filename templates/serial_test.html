@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Arduino Sensor Live View</title>
+</head>
+<body>
+  <button id="connectBtn">Connect Arduino</button>
+  <h1 id="status">No data yet</h1>
+
+  <script>
+    let port;
+
+    async function connectArduino() {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+
+        const decoder = new TextDecoderStream();
+        const inputDone = port.readable.pipeTo(decoder.writable);
+        const reader = decoder.readable.getReader();
+
+        let buffer = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += value;
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const text = line.trim();
+            console.log("Arduino:", text);
+
+            document.getElementById("status").textContent = text;
+
+            if (text === "NEAR") {
+              document.body.style.backgroundColor = "lightgreen";
+            } else if (text === "FAR") {
+              document.body.style.backgroundColor = "lightcoral";
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById("status").textContent = "Connection failed";
+      }
+    }
+
+    document.getElementById("connectBtn").addEventListener("click", connectArduino);
+  </script>
+</body>
+</html>

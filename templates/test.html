@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Serial Monitor</title>
+  <style>
+    body { background: #111; color: #0f0; font-family: monospace; padding: 20px; }
+    h2 { color: #fff; }
+    #lines { font-size: 1.2em; line-height: 1.8; }
+    .line { border-bottom: 1px solid #222; padding: 2px 0; }
+  </style>
+</head>
+<body>
+  <h2>Serial Monitor — raw output</h2>
+  <div id="lines">waiting...</div>
+  <script>
+    async function poll() {
+      const res = await fetch('/raw')
+      const data = await res.json()
+      const el = document.getElementById('lines')
+      if (data.length === 0) {
+        el.innerHTML = '<div class="line">no data yet</div>'
+      } else {
+        el.innerHTML = data.map(l => `<div class="line">${l}</div>`).join('')
+      }
+    }
+    poll()
+    setInterval(poll, 500)
+  </script>
+</body>
+</html>
